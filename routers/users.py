@@ -15,7 +15,7 @@ async def create_user(user: UserPydantic):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     new_user = User(
-        id=str(uuid.uuid4()),
+        id=user.id,
         name=user.name,
         email=user.email,
         passwort=user.password
