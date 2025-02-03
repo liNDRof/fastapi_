@@ -1,40 +1,44 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, FastAPI
 import asyncio
-import json
+from contextlib import asynccontextmanager
 
 router = APIRouter()
 
-connected_clients = []
+clients = []
 notifications = []
 
 @router.websocket("/ws/notifications")
 async def websocket_notifications(websocket: WebSocket):
     await websocket.accept()
-    connected_clients.append(websocket)
+    clients.append(websocket)
     try:
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
-        connected_clients.remove(websocket)
+    except:
+        clients.remove(websocket)
 
 async def send_notification(message: str):
-    notification = {"message": message}
-    notifications.append(notification)
+    notifications.append({"message": message})
     if len(notifications) > 10:
         notifications.pop(0)
 
-    for client in connected_clients:
-        await client.send_json(notification)
+    for client in clients:
+        await client.send_json(notifications[-1])
 
 @router.get("/notifications")
 async def get_notifications():
-    return {"notifications": notifications}
+    return notifications
 
-async def generate_match_updates():
+async def match_updates():
     while True:
-        await send_notification("матч")
+        await send_notification("матч!")
         await asyncio.sleep(10)
 
-@router.on_event("startup")
-async def startup_event():
-    asyncio.create_task(generate_match_updates())
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(match_updates())  # Запускаємо фонову задачу
+    yield  # Очікуємо, поки сервер працює
+    task.cancel()  # Завершуємо фонову задачу при зупинці сервера
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(router)
